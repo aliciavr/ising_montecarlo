@@ -1,11 +1,13 @@
 #include <iostream>
 #include <random>
+#include <vector>
 #include "TROOT.h"
 
-const int N = 10;
+const int N = 100;
 double T = 3.0; // T belongs to [0, 5]
+double const MAX_T = 4.0;
 const int NUM_CHANGES = N * N;
-const int NUM_MC = 1000;
+const int NUM_MC = 10000;
 
 // Random variables
 std::random_device rd;
@@ -23,10 +25,8 @@ double magnetization(int** s) {
     return sum/(N*N);
 }
 
-int** unordered_initialize_s() {
-    int** s = new int* [N];
+int** unordered_initialize_s(int** s) {
     for(int i = 0; i < N; i++) {
-        s[i] = new int[N];
         for (int j = 0; j < N; j++) {
             if (uniform(GEN) < 0.5) {
                 s[i][j] = -1;
@@ -54,8 +54,22 @@ void print_v(double* v, int N) {
     std::cout << "\n";
 }
 
-double* ising_metropolis(int** s) {
-    double* magnetization_values = new double[NUM_MC];
+void print_std_v(std::vector<double> v) {
+    for (double i: v) {
+        std::cout << i << "\t";
+    }
+    std::cout << "\n";
+}
+
+double average(double* v, int N) {
+    double sum = 0.0;
+    for (int i = 0; i < N; i++) {
+        sum += v[i];
+    }
+    return sum/N;
+}
+
+double* ising_metropolis(int** s, double* magnetization_values) {
 
     for (int mc = 0; mc < NUM_MC; mc++) {
         // Montecarlo Step N*N
@@ -80,11 +94,30 @@ double* ising_metropolis(int** s) {
     return magnetization_values;
 }
 int main() {
+    int** s = new int* [N];
+    for(int i = 0; i < N; i++) {
+        s[i] = new int[N];
+    }
+    double* magnetization_values = new double[NUM_MC];
+    std::vector<double> avg_mgn_values;
+    std::vector<double> temperatures;
 
-    int** s = unordered_initialize_s();
-    double* magnetization_values = ising_metropolis(s);
-    print_s(s, N);
-    print_v(magnetization_values, NUM_MC);
+    for (double t = 0.5; t < MAX_T; t += 0.25) {
+        std::cout << "Computing T = " << t << std::endl;
+        unordered_initialize_s(s);
+        ising_metropolis(s, magnetization_values);
+        //print_s(s, N);
+        //print_v(magnetization_values, NUM_MC);
+        double avg_magnetization = average(magnetization_values, NUM_MC);
+        std::cout << "T = " << t << ", avg_magnetization = " << avg_magnetization << std::endl;
+        avg_mgn_values.push_back(avg_magnetization);
+        temperatures.push_back(t);
+
+    }
+
+    print_std_v(avg_mgn_values);
+    print_std_v(temperatures);
+
 
     delete[] magnetization_values;
     for (int i = 0; i < N; i++) {
@@ -92,19 +125,5 @@ int main() {
     }
     delete[] s;
 
-
-    /*
-    double* test = new double[4];
-    for (int i = 0; i < 4; i++) {
-        test[i] = (i + 1) * 10;
-    }
-
-    int A = 4;
-    print_v(test, A);
-    int n = (4 % A + A) % A;
-    std::cout << "n = " << n << " test value = " << test[n];
-
-    delete[] test;
-     */
     return 0;
 }
