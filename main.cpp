@@ -2,41 +2,20 @@
 #include <random>
 #include <vector>
 #include "TROOT.h"
+#include "TGraph.h"
+#include "TCanvas.h"
 
-const int N = 100;
+const int N = 10;
 double T = 3.0; // T belongs to [0, 5]
 double const MAX_T = 4.0;
 const int NUM_CHANGES = N * N;
-const int NUM_MC = 10000;
+const int NUM_MC = 100000;
 
 // Random variables
 std::random_device rd;
 std::mt19937 GEN(rd());
 std::uniform_real_distribution<> uniform(0.0, 1.0);
 std::uniform_int_distribution<> select_point_uniform(0, N - 1);
-
-double magnetization(int** s) {
-    double sum = 0.0;
-    for (int i = 0; i < N; i++) {
-        for (int j = 0; j < N; j++) {
-            sum += s[i][j];
-        }
-    }
-    return sum/(N*N);
-}
-
-int** unordered_initialize_s(int** s) {
-    for(int i = 0; i < N; i++) {
-        for (int j = 0; j < N; j++) {
-            if (uniform(GEN) < 0.5) {
-                s[i][j] = -1;
-            } else {
-                s[i][j] = 1;
-            }
-        }
-    }
-    return s;
-}
 
 void print_s(int** s, int N) {
     for(int i = 0; i < N; i++) {
@@ -69,6 +48,29 @@ double average(double* v, int N) {
     return sum/N;
 }
 
+int** unordered_initialize_s(int** s) {
+    for(int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            if (uniform(GEN) < 0.5) {
+                s[i][j] = -1;
+            } else {
+                s[i][j] = 1;
+            }
+        }
+    }
+    return s;
+}
+
+double magnetization(int** s) {
+    double sum = 0.0;
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            sum += s[i][j];
+        }
+    }
+    return sum/(N*N);
+}
+
 double* ising_metropolis(int** s, double* magnetization_values) {
 
     for (int mc = 0; mc < NUM_MC; mc++) {
@@ -93,6 +95,7 @@ double* ising_metropolis(int** s, double* magnetization_values) {
     }
     return magnetization_values;
 }
+
 int main() {
     int** s = new int* [N];
     for(int i = 0; i < N; i++) {
@@ -118,6 +121,19 @@ int main() {
     print_std_v(avg_mgn_values);
     print_std_v(temperatures);
 
+    double x[avg_mgn_values.size()], y[temperatures.size()];
+    int n = temperatures.size();
+    for (int k = 0; k < n; k++) {
+        x[k] = temperatures[k];
+        y[k] = avg_mgn_values[k];
+    }
+
+    TCanvas* canvas = new TCanvas(); // Create a new canvas object
+    TGraph* g = new TGraph(n, x, y);
+    g->SetTitle("Graph title;X title;Y title");
+    g->Draw();
+    canvas->Draw(); // Display the canvas object
+    canvas->SaveAs("graph.png");
 
     delete[] magnetization_values;
     for (int i = 0; i < N; i++) {
