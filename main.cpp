@@ -4,17 +4,16 @@
 #include "TROOT.h"
 #include "TGraph.h"
 #include "TCanvas.h"
+#include "TAxis.h"
 
-// double const MAX_T = 3.25;
-// double const MIN_T = 1.25;
-// double const STEP_T = 0.25;
-static const double NUM_T = 24;
-double TEMPERATURES[] = {1.25, 1.5, 1.65,1.8, 1.9, 1.95, 2.0, 2.05,2.1, 2.15,2.2, 2.25,2.3, 2.35,2.4, 2.45,2.5, 2.55,2.6, 2.7,2.75, 3.0, 3.25, 3.5};
+static const double NUM_T = 27;
+double TEMPERATURES[] = {1.0, 1.1,1.2, 1.3,1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0, 2.1, 2.15,2.2, 2.25,2.3, 2.35, 2.4, 2.45,2.5,2.6, 2.7, 2.8, 2.9, 3.0, 3.2, 3.4};
+//double TEMPERATURES[] = {1.25, 1.5, 1.65, 1.7,1.8, 1.85,1.9, 1.95, 2.0, 2.05,2.1, 2.15,2.2, 2.25,2.3, 2.35, 2.4, 2.45,2.5, 2.6, 2.7, 3.0, 3.25, 3.5};
 static const double NUM_L = 1;
-double L_VALUES[] = {80, 40, 80};
+double L_VALUES[] = {10, 40, 80};
 const int NUM_MC = 100000;
 
-void create_graph(std::vector<double> x_values, std::vector<double> y_values, char* title, char* filename) {
+void create_graph(std::vector<double> x_values, std::vector<double> y_values, char* title, char* x_label, char* y_label, char* filename) {
     // Plotting average magnetization
     double x[x_values.size()], y[y_values.size()];
     int n = x_values.size();
@@ -26,6 +25,8 @@ void create_graph(std::vector<double> x_values, std::vector<double> y_values, ch
     TCanvas* canvas = new TCanvas(); // Create a new canvas object
     TGraph* g = new TGraph(n, x, y);
     g->SetTitle(title);
+    g->GetXaxis()->SetTitle(x_label);
+    g->GetYaxis()->SetTitle(y_label);
     g->SetMarkerStyle(kCircle);
     g->SetMarkerColor(kBlue);
     //g->SetLineColor(kBlue);
@@ -61,12 +62,23 @@ void print_std_v(std::vector<double> v) {
     std::cout << "\n";
 }
 
-double average(double* v, int n) {
+double get_average(double* v, int n) {
     double sum = 0.0;
     for (int i = 0; i < n; i++) {
         sum += v[i];
     }
     return sum/n;
+}
+
+double get_var_m(double avg_m2, double avg_m) {
+    double var = avg_m2 - std::pow(avg_m, 2);
+    return var;
+}
+
+double get_tau_m() {
+    double c = 0;
+    double tau = c / (1.0 - c);
+    return tau;
 }
 
 void unordered_initialize_s(int** s, double L, std::mt19937 GEN, std::uniform_real_distribution<> uniform) {
@@ -86,10 +98,15 @@ double binder_ratio(double avg_m4, double avg_m2) {
     return br;
 }
 
-double magnetic_susceptibility(double N, double T, double avg_m2, double avg_mgn) {
-    double var = avg_m2 - std::pow(avg_mgn, 2);
-    double ms = N / T * var; // k considered k = 1
+double magnetic_susceptibility(double N, double T, double var_m) {
+    //double var = avg_m2 - std::pow(avg_m, 2);
+    double ms = N / T * var_m; // k considered k = 1
     return ms;
+}
+
+double magnetization_error(double var_m, double tau_m) {
+    double m_err = std::sqrt(var_m * (2 * tau_m + 1) / NUM_MC);
+    return m_err;
 }
 
 double magnetization(int** s, int L, int N) {
@@ -105,8 +122,9 @@ double magnetization(int** s, int L, int N) {
 double* ising_metropolis(int** s, int L, int N,  double T, double* m_values, double* m2_values, double* m4_values,
                          std::mt19937 GEN,
                          std::uniform_real_distribution<> uniform, std::uniform_int_distribution<> select_point_uniform) {
+
     for (int mc = 0; mc < NUM_MC; mc++) {
-        // Montecarlo Step N*N
+        // Montecarlo Step L*L
         for (int r = 0; r < N; r++) {
             int n = select_point_uniform(GEN);
             int m = select_point_uniform(GEN);
@@ -120,7 +138,6 @@ double* ising_metropolis(int** s, int L, int N,  double T, double* m_values, dou
             if (uniform(GEN) < p) {
                 s[n][m] = -s[n][m];
             }
-
         }
 
         double m =  magnetization(s, L, N);
@@ -156,8 +173,9 @@ int main() {
         double* m4_values = new double[NUM_MC];
         std::vector<double> temperatures;
         std::vector<double> avg_m_values;
-        std::vector<double> ms_values;
-        std::vector<double> binder_values;
+        //std::vector<double> avg_m_err_values;
+        //std::vector<double> ms_values;
+        //std::vector<double> binder_values;
 
         for (int t = 0; t < NUM_T; t++) {
             const double T = TEMPERATURES[t];
@@ -166,37 +184,49 @@ int main() {
             unordered_initialize_s(s, L, GEN, uniform);
             ising_metropolis(s, L, N, T, m_values, m2_values, m4_values, GEN, uniform, select_point_uniform);
 
-            // Compute the average magnetization value
-            double avg_m = std::abs(average(m_values, NUM_MC));
-            // Auxiliary calculations
-            double avg_m2 = average(m2_values, NUM_MC);
-            double avg_m4 = average(m4_values, NUM_MC);
+            // Compute the average magnetization value.
+            double avg_m = std::abs(get_average(m_values, NUM_MC));
 
-            // Compute the magnetic susceptibility value
-            double ms = magnetic_susceptibility(N, T, avg_m2, avg_m);
+            // Auxiliary calculations.
+            //double avg_m2 = get_average(m2_values, NUM_MC);
+            //double avg_m4 = get_average(m4_values, NUM_MC);
+            //double var_m = get_var_m(avg_m2, avg_m);
+            //double tau_m = get_tau_m();
 
-            // Compute the binder ratio value
-            double br = binder_ratio(avg_m4, avg_m2);
-            std::cout << "T = " << T << ", avg_mgn = " << avg_m << ", ms = " << ms << ", br = " << br << std::endl;
+            // Compute the average magnetization error.
+            //double avg_m_err = magnetization_error(var_m, tau_m);
 
+            // Compute the magnetic susceptibility value.
+            //double ms = magnetic_susceptibility(N, T, var_m);
+
+            // Compute the binder ratio value.
+            //double br = binder_ratio(avg_m4, avg_m2);
+
+            // Print status.
+            //std::cout << "T = " << T << ", avg_m(avg_m_err) = " << avg_m << "(" << avg_m_err << ")"
+            //            << ", ms = " << ms << ", br = " << br << std::endl;
+            std::cout << "T = " << T << ", avg_m = " << avg_m << std::endl;
+
+            // Store results.
             temperatures.push_back(T);
             avg_m_values.push_back(avg_m);
-            ms_values.push_back(ms);
-            binder_values.push_back(br);
+            //avg_m_err_values.push_back(avg_m_err);
+            //ms_values.push_back(ms);
+            //binder_values.push_back(br);
         }
 
         // Print results.
         std::cout << "L = " << L << ", N = " << N << ", NUM_MC = " << NUM_MC << ", NUM_T = " << NUM_T << std::endl;
         print_std_v(temperatures);
         print_std_v(avg_m_values);
-        print_std_v(ms_values);
-        print_std_v(binder_values);
+        //print_std_v(avg_m_err_values);
+        //print_std_v(ms_values);
+        //print_std_v(binder_values);
 
         // Create graphs with the results.
-        create_graph(temperatures, avg_m_values, "Average Magnetization", "avg_m.png");
-        create_graph(temperatures, ms_values, "Magnetic susceptibility", "ms.png");
-        create_graph(temperatures, binder_values, "Binder Ratio", "br.png");
-
+        create_graph(temperatures, avg_m_values, "Average Magnetization", "T", "m_N", "avg_m.png");
+        //create_graph(temperatures, ms_values, "Magnetic susceptibility", "T", "chi_N", "ms.png");
+        //create_graph(temperatures, binder_values, "Binder Ratio", "T", "U^4", "br.png");
 
         // Deallocation of the 2D Lattice.
         for (int i = 0; i < L; i++) {
