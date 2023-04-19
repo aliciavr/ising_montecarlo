@@ -5,7 +5,7 @@
 #include "TGraph.h"
 #include "TCanvas.h"
 
-const int N = 20;
+const int N = 50;
 double const MAX_T = 3.25;
 double const MIN_T = 1.25;
 double const STEP_T = 0.15;
@@ -155,9 +155,8 @@ int main() {
     canvas->Draw("AP"); // Display the canvas object
     canvas->SaveAs("graph.png");
 
-    // Plotting magnetic susceptibility
-
-
+    delete canvas;
+    delete g;
     delete[] magnetization2_values;
     delete[] magnetization_values;
     for (int i = 0; i < N; i++) {
