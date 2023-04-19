@@ -5,9 +5,10 @@
 #include "TGraph.h"
 #include "TCanvas.h"
 
-const int N = 10;
-double T = 3.0; // T belongs to [0, 5]
-double const MAX_T = 4.0;
+const int N = 20;
+double const MAX_T = 3.25;
+double const MIN_T = 1.25;
+double const STEP_T = 0.15;
 const int NUM_CHANGES = N * N;
 const int NUM_MC = 100000;
 
@@ -48,7 +49,7 @@ double average(double* v, int N) {
     return sum/N;
 }
 
-int** unordered_initialize_s(int** s) {
+void unordered_initialize_s(int** s) {
     for(int i = 0; i < N; i++) {
         for (int j = 0; j < N; j++) {
             if (uniform(GEN) < 0.5) {
@@ -58,7 +59,12 @@ int** unordered_initialize_s(int** s) {
             }
         }
     }
-    return s;
+}
+
+double magnetic_susceptibility(double T, double* magnetization2_values, double avg_mgn) {
+    double var = average(magnetization2_values, NUM_MC) - std::pow(avg_mgn, 2);
+    double ms = N / T * var; // k considered k = 1
+    return ms;
 }
 
 double magnetization(int** s) {
@@ -71,7 +77,7 @@ double magnetization(int** s) {
     return sum/(N*N);
 }
 
-double* ising_metropolis(int** s, double* magnetization_values) {
+double* ising_metropolis(int** s, double T, double* magnetization_values, double* magnetization2_values) {
 
     for (int mc = 0; mc < NUM_MC; mc++) {
         // Montecarlo Step N*N
@@ -91,7 +97,9 @@ double* ising_metropolis(int** s, double* magnetization_values) {
 
         }
 
-        magnetization_values[mc] = magnetization(s);
+        double m =  magnetization(s);
+        magnetization_values[mc] = m;
+        magnetization2_values[mc] = m * m;
     }
     return magnetization_values;
 }
@@ -102,26 +110,34 @@ int main() {
         s[i] = new int[N];
     }
     double* magnetization_values = new double[NUM_MC];
-    std::vector<double> avg_mgn_values;
+    double* magnetization2_values = new double[NUM_MC];
     std::vector<double> temperatures;
-
-    for (double t = 0.5; t < MAX_T; t += 0.25) {
-        std::cout << "Computing T = " << t << std::endl;
+    std::vector<double> avg_mgn_values;
+    std::vector<double> ms_values;
+    for (double T = MIN_T; T < MAX_T; T += STEP_T) {
+        std::cout << "Computing T = " << T << std::endl;
         unordered_initialize_s(s);
-        ising_metropolis(s, magnetization_values);
+        ising_metropolis(s, T, magnetization_values, magnetization2_values);
         //print_s(s, N);
         //print_v(magnetization_values, NUM_MC);
-        double avg_magnetization = average(magnetization_values, NUM_MC);
-        std::cout << "T = " << t << ", avg_magnetization = " << avg_magnetization << std::endl;
-        avg_mgn_values.push_back(avg_magnetization);
-        temperatures.push_back(t);
+        // Store the temperature value
+        temperatures.push_back(T);
+        // Store the average magnetization value
+        double avg_mgn = std::abs(average(magnetization_values, NUM_MC));
+        avg_mgn_values.push_back(avg_mgn);
+        // Store the magnetic susceptibility value
+        double ms = magnetic_susceptibility(T, magnetization2_values, avg_mgn);
+        ms_values.push_back(ms);
+        std::cout << "T = " << T << ", avg_mgn = " << avg_mgn << ", ms = " << ms << std::endl;
 
     }
 
-    print_std_v(avg_mgn_values);
     print_std_v(temperatures);
+    print_std_v(avg_mgn_values);
+    print_std_v(ms_values);
 
-    double x[avg_mgn_values.size()], y[temperatures.size()];
+    // Plotting average magnetization
+    double x[temperatures.size()], y[avg_mgn_values.size()];
     int n = temperatures.size();
     for (int k = 0; k < n; k++) {
         x[k] = temperatures[k];
@@ -130,11 +146,19 @@ int main() {
 
     TCanvas* canvas = new TCanvas(); // Create a new canvas object
     TGraph* g = new TGraph(n, x, y);
-    g->SetTitle("Graph title;X title;Y title");
-    g->Draw();
-    canvas->Draw(); // Display the canvas object
+    g->SetTitle("Magnetizaci\'on promedio en funci\'on de la temperatura; Temperaturas; Magnetizaci\'on promedio");
+    g->SetMarkerStyle(kCircle);
+    g->SetMarkerColor(kBlue);
+    //g->SetLineColor(kBlue);
+    //g->SetLineWidth(2);
+    g->Draw("AP");
+    canvas->Draw("AP"); // Display the canvas object
     canvas->SaveAs("graph.png");
 
+    // Plotting magnetic susceptibility
+
+
+    delete[] magnetization2_values;
     delete[] magnetization_values;
     for (int i = 0; i < N; i++) {
         delete[] s[i];
