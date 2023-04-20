@@ -10,8 +10,8 @@ static const double NUM_T = 27;
 double TEMPERATURES[] = {1.0, 1.1,1.2, 1.3,1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0, 2.1, 2.15,2.2, 2.25,2.3, 2.35, 2.4, 2.45,2.5,2.6, 2.7, 2.8, 2.9, 3.0, 3.2, 3.4};
 //double TEMPERATURES[] = {1.25, 1.5, 1.65, 1.7,1.8, 1.85,1.9, 1.95, 2.0, 2.05,2.1, 2.15,2.2, 2.25,2.3, 2.35, 2.4, 2.45,2.5, 2.6, 2.7, 3.0, 3.25, 3.5};
 static const double NUM_L = 1;
-double L_VALUES[] = {10, 40, 80};
-const int NUM_MC = 100000;
+double L_VALUES[] = {20, 40, 80};
+const int NUM_MC = 10000;
 
 void create_graph(std::vector<double> x_values, std::vector<double> y_values, char* title, char* x_label, char* y_label, char* filename) {
     // Plotting average magnetization
@@ -119,7 +119,7 @@ double magnetization(int** s, int L, int N) {
     return sum/N;
 }
 
-double* ising_metropolis(int** s, int L, int N,  double T, double* m_values, double* m2_values, double* m4_values,
+void ising_metropolis(int** s, int L, int N,  double T, double* avg_m, double* m2_values, double* m4_values,
                          std::mt19937 GEN,
                          std::uniform_real_distribution<> uniform, std::uniform_int_distribution<> select_point_uniform) {
 
@@ -140,12 +140,12 @@ double* ising_metropolis(int** s, int L, int N,  double T, double* m_values, dou
             }
         }
 
-        double m =  magnetization(s, L, N);
-        m_values[mc] = m;
+        double m =  std::abs(magnetization(s, L, N));
+        *avg_m += m;
         m2_values[mc] = std::pow(m, 2);
         m4_values[mc] = std::pow(m, 4);
     }
-    return m_values;
+    *avg_m /= NUM_MC;
 }
 
 int main() {
@@ -181,11 +181,13 @@ int main() {
             const double T = TEMPERATURES[t];
             std::cout << "Computing T = " << T << std::endl;
 
+            double avg_m = 0.0;
+
             unordered_initialize_s(s, L, GEN, uniform);
-            ising_metropolis(s, L, N, T, m_values, m2_values, m4_values, GEN, uniform, select_point_uniform);
+            ising_metropolis(s, L, N, T, &avg_m, m2_values, m4_values, GEN, uniform, select_point_uniform);
 
             // Compute the average magnetization value.
-            double avg_m = std::abs(get_average(m_values, NUM_MC));
+            //double avg_m = std::abs(get_average(m_values, NUM_MC));
 
             // Auxiliary calculations.
             //double avg_m2 = get_average(m2_values, NUM_MC);
