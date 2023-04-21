@@ -12,7 +12,7 @@ static const double NUM_T = 27;
 double TEMPERATURES[] = {1.0, 1.1,1.2, 1.3,1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0, 2.1, 2.15,2.2, 2.25,2.3, 2.35, 2.4, 2.45,2.5,2.6, 2.7, 2.8, 2.9, 3.0, 3.2, 3.4};
 static const double NUM_L = 5;
 double L_VALUES[] = { 10, 20, 40,  80, 100};
-const int NUM_MC = 50000;
+const int NUM_MC = 20000;
 const int NUM_TERM = NUM_MC * 0.2;
 const int M = NUM_MC - NUM_TERM;
 
@@ -124,7 +124,7 @@ double magnetization_error(double var_m, double c) {
     if (c != 1.0) {
         tau_m = c / (1.0 - c);
     }
-    double m_err = std::sqrt(var_m * (2 * tau_m + 1) / M);
+    double m_err = std::sqrt(var_m * (2 * tau_m + 1) / (NUM_MC - NUM_TERM));
     return m_err;
 }
 
@@ -138,21 +138,41 @@ double magnetization(int** s, int L, int N) {
     return sum/N;
 }
 
+
 void ising_metropolis(int** s, int L, int N,  double T, double* avg_m, double* avg_m2, double* avg_m4, double* c,
                          std::mt19937 GEN,
                          std::uniform_real_distribution<> uniform, std::uniform_int_distribution<> select_point_uniform) {
 
     double m_aux = 1.0;
-    for (int mc = 0; mc < NUM_MC; mc++) {
-        // Monte Carlo Step L*L
+    int mc = 0;
+    // Starts Thermalization of Monte Carlo
+    for (; mc < NUM_TERM; mc++) {
         for (int r = 0; r < N; r++) {
             int n = select_point_uniform(GEN);
             int m = select_point_uniform(GEN);
             double incrE = 2 * s[n][m] *
-                    (s[(n + 1) % L][m] +
-                    s[((n - 1) % L + L) % L][m] +
-                    s[n][(m + 1) % L] +
-                    s[n][((m - 1) % L + L) % L]);
+                           (s[(n + 1) % L][m] +
+                            s[((n - 1) % L + L) % L][m] +
+                            s[n][(m + 1) % L] +
+                            s[n][((m - 1) % L + L) % L]);
+            double p = std::min(1.0, std::exp(-(incrE/T)));
+
+            if (uniform(GEN) < p) {
+                s[n][m] = -s[n][m];
+            }
+        }
+    }
+
+    // Starts measurements for Monte Carlo
+    for (; mc < NUM_MC; mc++) {
+        for (int r = 0; r < N; r++) {
+            int n = select_point_uniform(GEN);
+            int m = select_point_uniform(GEN);
+            double incrE = 2 * s[n][m] *
+                           (s[(n + 1) % L][m] +
+                            s[((n - 1) % L + L) % L][m] +
+                            s[n][(m + 1) % L] +
+                            s[n][((m - 1) % L + L) % L]);
             double p = std::min(1.0, std::exp(-(incrE/T)));
 
             if (uniform(GEN) < p) {
@@ -160,15 +180,13 @@ void ising_metropolis(int** s, int L, int N,  double T, double* avg_m, double* a
             }
         }
 
-        if (mc > NUM_TERM) {
-            double m =  std::abs(magnetization(s, L, N));
-            *avg_m += m;
-            *avg_m2 += std::pow(m, 2);
-            *avg_m4 += std::pow(m, 4);
+        double m =  std::abs(magnetization(s, L, N));
+        *avg_m += m;
+        *avg_m2 += std::pow(m, 2);
+        *avg_m4 += std::pow(m, 4);
 
-            *c = *c + m * m_aux;
-            m_aux = m;
-        }
+        *c = *c + m * m_aux;
+        m_aux = m;
 
     }
     *avg_m /= M;
