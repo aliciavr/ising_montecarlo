@@ -10,9 +10,9 @@
 static const double Tc = 2 / std::log(1 + std::sqrt(2));
 static const double NUM_T = 27;
 double TEMPERATURES[] = {1.0, 1.1,1.2, 1.3,1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0, 2.1, 2.15,2.2, 2.25,2.3, 2.35, 2.4, 2.45,2.5,2.6, 2.7, 2.8, 2.9, 3.0, 3.2, 3.4};
-static const double NUM_L = 1;
+static const double NUM_L = 4;
 double L_VALUES[] = { 10, 20, 40,  80, 100};
-const int NUM_MC = 100000;
+const int NUM_MC = 250000;
 
 void create_graph_err(std::vector<double> x_values, std::vector<double> y_values, std::vector<double> err_values,
                       char* title, char* x_label, char* y_label, char* filename) {
@@ -83,18 +83,11 @@ void print_v(double* v, int n) {
 }
 
 void print_std_v(std::vector<double> v) {
+    std::cout << "[";
     for (double i: v) {
         std::cout << i << ", ";
     }
     std::cout << "\n";
-}
-
-double get_average(double* v, int n) {
-    double sum = 0.0;
-    for (int i = 0; i < n; i++) {
-        sum += v[i];
-    }
-    return sum/n;
 }
 
 double get_var_m(double avg_m2, double avg_m) {
@@ -208,6 +201,7 @@ int main() {
 
         // Declaring variables.
         std::vector<double> temperatures;
+        std::vector<double> onsager_values;
         std::vector<double> avg_m_values;
         std::vector<double> avg_m_err_values;
         std::vector<double> ms_values;
@@ -244,6 +238,7 @@ int main() {
 
             // Store results.
             temperatures.push_back(T);
+            onsager_values.push_back(onsager(T));
             avg_m_values.push_back(avg_m);
             avg_m_err_values.push_back(avg_m_err);
             ms_values.push_back(ms);
@@ -252,10 +247,17 @@ int main() {
 
         // Print results.
         std::cout << "L = " << L << ", N = " << N << ", NUM_MC = " << NUM_MC << ", NUM_T = " << NUM_T << std::endl;
+        std::cout << "#Temperatures: " << std::endl;
         print_std_v(temperatures);
+        std::cout << "#Onsager: " << std::endl;
+        print_std_v(onsager_values);
+        std::cout << "#Average Magnetization: " << std::endl;
         print_std_v(avg_m_values);
+        std::cout << "#Average Magnetization Errors: " << std::endl;
         print_std_v(avg_m_err_values);
+        std::cout << "#Magnetic Susceptibility: " << std::endl;
         print_std_v(ms_values);
+        std::cout << "#Binder Ratio: " << std::endl;
         print_std_v(binder_values);
 
         // Create graphs with the results.
@@ -272,7 +274,6 @@ int main() {
         }
         delete[] s;
     }
-
     return 0;
 }
 
