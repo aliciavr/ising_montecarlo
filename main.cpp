@@ -139,9 +139,10 @@ double magnetization(int** s, int L, int N) {
 }
 
 
-void ising_metropolis(int** s, int L, int N,  double T, double* avg_m, double* avg_m2, double* avg_m4, double* c,
-                         std::mt19937 GEN,
-                         std::uniform_real_distribution<> uniform, std::uniform_int_distribution<> select_point_uniform) {
+void ising_metropolis(int** s, int L, int N,  double T,
+                      double* avg_m, double* avg_m2, double* avg_m4, double* c, double* avg_spin_e,
+                      std::mt19937 GEN,
+                      std::uniform_real_distribution<> uniform, std::uniform_int_distribution<> select_point_uniform) {
 
     double m_aux = 1.0;
     int mc = 0;
@@ -181,9 +182,11 @@ void ising_metropolis(int** s, int L, int N,  double T, double* avg_m, double* a
         }
 
         double m =  std::abs(magnetization(s, L, N));
+        double m2 = std::pow(m, 2);
         *avg_m += m;
-        *avg_m2 += std::pow(m, 2);
+        *avg_m2 += m2;
         *avg_m4 += std::pow(m, 4);
+        *avg_spin_e -= m2;
 
         *c = *c + m * m_aux;
         m_aux = m;
@@ -192,6 +195,7 @@ void ising_metropolis(int** s, int L, int N,  double T, double* avg_m, double* a
     *avg_m /= M;
     *avg_m2 /= M;
     *avg_m4 /= M;
+    *avg_spin_e /= M;
 }
 
 int main() {
@@ -219,6 +223,8 @@ int main() {
         std::vector<double> avg_m_err_values;
         std::vector<double> ms_values;
         std::vector<double> binder_values;
+        std::vector<double> spin_energy_values;
+
 
         unordered_initialize_s(s, L, GEN, uniform);
 
@@ -230,8 +236,9 @@ int main() {
             double avg_m2 = 0.0;
             double avg_m4 = 0.0;
             double c = 0.0;
+            double avg_spin_e = 0.0;
 
-            ising_metropolis(s, L, N, T, &avg_m, &avg_m2, &avg_m4, &c, GEN, uniform, select_point_uniform);
+            ising_metropolis(s, L, N, T, &avg_m, &avg_m2, &avg_m4, &c, &avg_spin_e, GEN, uniform, select_point_uniform);
 
             // Auxiliary calculations.
             double var_m = get_var_m(avg_m2, avg_m);
@@ -248,7 +255,7 @@ int main() {
 
             // Print status.
             std::cout << "T = " << T << ", avg_m(avg_m_err) = " << avg_m << "(" << avg_m_err << ")"
-                        << ", ms = " << ms << ", br = " << br << std::endl;
+                        << ", ms = " << ms << ", br = " << br << ", e = " << avg_spin_e << std::endl;
 
             // Store results.
             temperatures.push_back(T);
@@ -256,10 +263,12 @@ int main() {
             avg_m_err_values.push_back(avg_m_err);
             ms_values.push_back(ms);
             binder_values.push_back(br);
+            spin_energy_values.push_back(avg_spin_e);
         }
 
         // Print results.
-        std::cout << "L = " << L << ", N = " << N << ", NUM_MC = " << NUM_MC << ", NUM_T = " << NUM_T << std::endl;
+        std::cout << "L = " << L << ", N = " << N << ", NUM_MC = " << NUM_MC <<
+        ", NUM_TERM = " << NUM_TERM << ", M = " << M << ", NUM_T = " << NUM_T << std::endl;
         std::cout << "#Temperatures: " << std::endl;
         print_std_v(temperatures);
         std::cout << "#Average Magnetization: " << std::endl;
@@ -270,6 +279,8 @@ int main() {
         print_std_v(ms_values);
         std::cout << "#Binder Ratio: " << std::endl;
         print_std_v(binder_values);
+        std::cout << "# Energy; " << std::endl;
+        print_std_v(spin_energy_values);
 
         // Create graphs with the results.
         create_graph_err(temperatures, avg_m_values, avg_m_err_values,
@@ -278,6 +289,8 @@ int main() {
                      "Magnetic susceptibility", "T", "chi_N", "ms.png");
         create_graph(temperatures, binder_values,
                      "Binder Ratio", "T", "U^4", "br.png");
+        create_graph(temperatures, spin_energy_values,
+                     "Spin Energy", "T", "E", "se.png");
 
         // Deallocation of the 2D Lattice.
         for (int i = 0; i < L; i++) {
