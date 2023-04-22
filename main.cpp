@@ -11,8 +11,8 @@ static const double Tc = 2 / std::log(1 + std::sqrt(2));
 static const double NUM_T = 27;
 double TEMPERATURES[] = {1.0, 1.1,1.2, 1.3,1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0, 2.1, 2.15,2.2, 2.25,2.3, 2.35, 2.4, 2.45,2.5,2.6, 2.7, 2.8, 2.9, 3.0, 3.2, 3.4};
 static const double NUM_L = 5;
-double L_VALUES[] = { 10, 20, 40,  80, 100};
-const int NUM_MC = 20000;
+double L_VALUES[] = { 10, 20, 40,  60, 80};
+const int NUM_MC = 50000;
 const int NUM_TERM = NUM_MC * 0.2;
 const int M = NUM_MC - NUM_TERM;
 
@@ -109,6 +109,11 @@ void unordered_initialize_s(int** s, double L, std::mt19937 GEN, std::uniform_re
     }
 }
 
+double energy_by_spin(int N, double avg_e) {
+    double avg_es = avg_e / (2 * N);
+    return avg_es;
+}
+
 double binder_ratio(double avg_m4, double avg_m2) {
     double br = 1 - avg_m4 / (3 * std::pow(avg_m2,2) );
     return br;
@@ -138,9 +143,8 @@ double magnetization(int** s, int L, int N) {
     return sum/N;
 }
 
-
 void ising_metropolis(int** s, int L, int N,  double T,
-                      double* avg_m, double* avg_m2, double* avg_m4, double* c, double* avg_spin_e,
+                      double* avg_m, double* avg_m2, double* avg_m4, double* c, double* avg_e,
                       std::mt19937 GEN,
                       std::uniform_real_distribution<> uniform, std::uniform_int_distribution<> select_point_uniform) {
 
@@ -186,7 +190,7 @@ void ising_metropolis(int** s, int L, int N,  double T,
         *avg_m += m;
         *avg_m2 += m2;
         *avg_m4 += std::pow(m, 4);
-        *avg_spin_e -= m2;
+        *avg_e -= 2 * N * m2;
 
         *c = *c + m * m_aux;
         m_aux = m;
@@ -195,7 +199,7 @@ void ising_metropolis(int** s, int L, int N,  double T,
     *avg_m /= M;
     *avg_m2 /= M;
     *avg_m4 /= M;
-    *avg_spin_e /= M;
+    *avg_e /= M;
 }
 
 int main() {
@@ -225,7 +229,6 @@ int main() {
         std::vector<double> binder_values;
         std::vector<double> spin_energy_values;
 
-
         unordered_initialize_s(s, L, GEN, uniform);
 
         for (int t = NUM_T - 1; t >= 0; t--) {
@@ -236,9 +239,9 @@ int main() {
             double avg_m2 = 0.0;
             double avg_m4 = 0.0;
             double c = 0.0;
-            double avg_spin_e = 0.0;
+            double avg_e = 0.0;
 
-            ising_metropolis(s, L, N, T, &avg_m, &avg_m2, &avg_m4, &c, &avg_spin_e, GEN, uniform, select_point_uniform);
+            ising_metropolis(s, L, N, T, &avg_m, &avg_m2, &avg_m4, &c, &avg_e, GEN, uniform, select_point_uniform);
 
             // Auxiliary calculations.
             double var_m = get_var_m(avg_m2, avg_m);
@@ -253,9 +256,12 @@ int main() {
             // Compute the binder ratio value.
             double br = binder_ratio(avg_m4, avg_m2);
 
+            // Compute the energy by spin.
+            double se = energy_by_spin(N, avg_e);
+
             // Print status.
             std::cout << "T = " << T << ", avg_m(avg_m_err) = " << avg_m << "(" << avg_m_err << ")"
-                        << ", ms = " << ms << ", br = " << br << ", e = " << avg_spin_e << std::endl;
+                        << ", ms = " << ms << ", br = " << br << ", e = " << se << std::endl;
 
             // Store results.
             temperatures.push_back(T);
@@ -263,7 +269,7 @@ int main() {
             avg_m_err_values.push_back(avg_m_err);
             ms_values.push_back(ms);
             binder_values.push_back(br);
-            spin_energy_values.push_back(avg_spin_e);
+            spin_energy_values.push_back(se);
         }
 
         // Print results.
@@ -279,7 +285,7 @@ int main() {
         print_std_v(ms_values);
         std::cout << "#Binder Ratio: " << std::endl;
         print_std_v(binder_values);
-        std::cout << "# Energy; " << std::endl;
+        std::cout << "#Energy: " << std::endl;
         print_std_v(spin_energy_values);
 
         // Create graphs with the results.
